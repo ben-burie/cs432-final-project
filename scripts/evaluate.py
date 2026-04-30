@@ -1,12 +1,3 @@
-"""
-Evaluate a trained checkpoint against a test directory (batched inference).
-
-Usage:
-    python scripts/evaluate.py --checkpoint models/voice_commander.pth
-    python scripts/evaluate.py --checkpoint models/voice_commander.pth --test-dir test_data
-"""
-
-import argparse
 import csv
 import logging
 import sys
@@ -26,6 +17,21 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 32
 
+def prompt_checkpoint() -> Path:
+    models_dir = Path("models")
+    options = sorted(models_dir.glob("*.pth")) if models_dir.exists() else []
+    if options:
+        print("\nAvailable checkpoints:")
+        for p in options:
+            print(f"  {p.name}")
+    else:
+        print("\nNo checkpoints found in models/")
+    name = input("\nCheckpoint name (e.g. BASE.pth): ").strip()
+    return models_dir / name
+
+def prompt_test_dir() -> Path:
+    name = input("Test data directory (e.g. test_data): ").strip()
+    return Path(name)
 
 def _scan_test_dir(test_dir: Path) -> dict[str, list[Path]]:
     """Return {label: [wav_path, ...]} for all subdirectories containing .wav files."""
@@ -38,24 +44,9 @@ def _scan_test_dir(test_dir: Path) -> dict[str, list[Path]]:
             result[subdir.name] = wavs
     return result
 
-
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Evaluate a voice command checkpoint against a test directory (batched).",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "--checkpoint", required=True,
-        help="Path to the .pth model checkpoint to evaluate",
-    )
-    parser.add_argument(
-        "--test-dir", default="test_data",
-        help="Root test directory (one subfolder per command label)",
-    )
-    args = parser.parse_args()
-
-    checkpoint_path = Path(args.checkpoint)
-    test_dir = Path(args.test_dir)
+    checkpoint_path = prompt_checkpoint()
+    test_dir = prompt_test_dir()
 
     if not checkpoint_path.exists():
         logger.error("Checkpoint not found: %s", checkpoint_path)

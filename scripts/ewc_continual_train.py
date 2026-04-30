@@ -1,4 +1,3 @@
-import argparse
 import logging
 import sys
 from datetime import date
@@ -31,11 +30,21 @@ def prompt_new_command() -> str:
     return label
 
 
-def prompt_training_config() -> tuple[str, int]:
+def prompt_training_config() -> tuple[str, int, float]:
     model_name = input("\nEnter name for the new checkpoint: ").strip()
-    epochs = int(input("Number of epochs: "))
-    return model_name, epochs
-
+    while True:
+        try:
+            epochs = int(input("Number of epochs: "))
+            break
+        except ValueError:
+            print("Please enter a valid number.")
+    while True:
+        try:
+            ewc_lambda = float(input("EWC lambda [400.0]: ").strip() or "400.0")
+            break
+        except ValueError:
+            print("Please enter a valid number.")
+    return model_name, epochs, ewc_lambda
 
 # ---------------------------------------------------------------------------
 # EWC helpers
@@ -57,7 +66,6 @@ def pad_fisher_and_theta(fisher: dict, theta_star: dict) -> tuple[dict, dict]:
         "bias":   torch.cat([theta_star["bias"],   torch.zeros(1, device=dev)]),
     }
     return fisher, theta_star
-
 
 def accumulate_and_resave(checkpoint_path: str, train_loader, device: torch.device, label_to_idx: dict, idx_to_label: dict,
     whisper_model_name: str, old_fisher: dict) -> None:
@@ -87,7 +95,6 @@ def accumulate_and_resave(checkpoint_path: str, train_loader, device: torch.devi
         theta_star=final_theta_star,
     )
     logger.info("Fisher accumulated and checkpoint re-saved → %s", checkpoint_path)
-
 
 # ---------------------------------------------------------------------------
 # Training loop
@@ -168,23 +175,13 @@ def train_ewc(model: WhisperCommandClassifier, train_loader, val_loader, device:
 
     logger.info("Training complete. Best val accuracy: %.1f%%", best_val_acc)
 
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="EWC continual learning: add one new command to BASE.pth.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--ewc-lambda", type=float, default=400.0,
-                        help="EWC regularisation strength. Higher = more protection of old commands.")
-    args = parser.parse_args()
-
-    data_dir    = Path("data")
-    config_path = Path("config/commands.yaml")
-    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    data_dir = Path("data")
+    device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s", device)
 
     # 1. Load BASE checkpoint
@@ -208,7 +205,7 @@ def main() -> None:
         logger.error("Label '%s' already exists in this checkpoint. Aborting.", new_label)
         sys.exit(1)
 
-    model_name, epochs = prompt_training_config()
+    model_name, epochs, ewc_lambda = prompt_training_config()
     checkpoint_out = f"models/{date.today()}_{model_name}.pth"
 
     # 3. Generate data unless the label directory already exists
@@ -216,7 +213,7 @@ def main() -> None:
     if label_dir.exists():
         logger.info("Data directory '%s' already exists, skipping generation.", label_dir)
     else:
-        run_data_generation(new_label, data_dir, config_path)
+        run_data_generation(new_label, data_dir)
 
     # 4. Expand label maps (new label appended at index N, old indices unchanged)
     new_idx = n_old
@@ -243,13 +240,13 @@ def main() -> None:
     # 8. Train with EWC loss
     logger.info(
         "Training '%s' for %d epochs with EWC λ=%.1f → %s",
-        new_label, epochs, args.ewc_lambda, checkpoint_out,
+        new_label, epochs, ewc_lambda, checkpoint_out,
     )
     train_ewc(
         model, train_loader, val_loader, device,
         epochs, LR, checkpoint_out,
         label_to_idx, idx_to_label, whisper_model_name,
-        fisher, theta_star, args.ewc_lambda,
+        fisher, theta_star, ewc_lambda,
     )
 
     # 9. Accumulate Fisher on new training data and re-save best checkpoint

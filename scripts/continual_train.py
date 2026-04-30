@@ -1,6 +1,5 @@
 import logging
 import random
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -19,7 +18,6 @@ from src.training.dataset import CommandDataset
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
-AVAILABLE_ACTIONS = ["open_url", "open_url_in_browser", "open_application"]
 CHECKPOINT_PATH = "models/BASE.pth"
 N_SAMPLES = 150
 BATCH_SIZE = 8
@@ -30,43 +28,30 @@ LR = 1e-4
 # Interactive prompts
 # ---------------------------------------------------------------------------
 
-def prompt_new_command() -> tuple[str, dict]:
+def prompt_new_command() -> str:
     print("\n=== New Command Setup ===")
-
     label = input("Label key (e.g. Open_Spotify): ").strip()
     while not label:
         label = input("Label cannot be empty. Label key: ").strip()
-
-    default_display = label.replace("_", " ")
-    display_name = input(f"Display name [{default_display}]: ").strip() or default_display
-
-    print(f"\nAvailable actions: {', '.join(AVAILABLE_ACTIONS)}")
-    action = input("Action: ").strip()
-    while action not in AVAILABLE_ACTIONS:
-        action = input(f"Must be one of {AVAILABLE_ACTIONS}: ").strip()
-
-    params: dict = {}
-    if action == "open_url":
-        params["url"] = input("URL: ").strip()
-    elif action == "open_url_in_browser":
-        params["url"] = input("URL: ").strip()
-        params["browser"] = input("Browser (e.g. brave, chrome): ").strip()
-    elif action == "open_application":
-        app = input("App name (leave blank for none): ").strip() or None
-        params["app"] = app
-
-    return label, {"display_name": display_name, "action": action, "params": params}
+    return label
 
 
 def prompt_training_config() -> tuple[str, int, float]:
-    """Prompt for output model name, epoch count, and gradient update probability."""
     model_name = input("\nEnter name for the new checkpoint: ").strip()
-    epochs = int(input("Number of epochs: "))
-
-    grad_update_prob = float(input("Gradient update probability for old head rows (0.0–1.0): "))
-    while not (0.0 <= grad_update_prob <= 1.0):
-        grad_update_prob = float(input("Must be between 0.0 and 1.0: "))
-
+    while True:
+        try:
+            epochs = int(input("Number of epochs: "))
+            break
+        except ValueError:
+            print("Please enter a valid number.")
+    while True:
+        try:
+            grad_update_prob = float(input("Gradient update probability for old head rows (0.0–1.0): "))
+            if 0.0 <= grad_update_prob <= 1.0:
+                break
+            print("Must be between 0.0 and 1.0.")
+        except ValueError:
+            print("Please enter a valid number.")
     return model_name, epochs, grad_update_prob
 
 
@@ -74,20 +59,17 @@ def prompt_training_config() -> tuple[str, int, float]:
 # Data generation
 # ---------------------------------------------------------------------------
 
-def run_data_generation(new_label: str, data_dir: Path, config_path: Path) -> None:
-    script = Path(__file__).parent / "generate_data.py"
-    cmd = [
-        sys.executable, str(script),
-        "--commands", new_label,
-        "--n-samples", str(N_SAMPLES),
-        "--data-dir", str(data_dir),
-        "--config", str(config_path),
-    ]
-    logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        logger.error("Data generation failed (exit %d).", result.returncode)
-        sys.exit(1)
+def run_data_generation(new_label: str, data_dir: Path) -> None:
+    from scripts.generate_data import generate_audio_for_command
+    from bark import preload_models
+    logger.info("Loading Bark models...")
+    preload_models()
+    generate_audio_for_command(
+        label=new_label,
+        display_name=new_label.replace("_", " "),
+        n_samples=N_SAMPLES,
+        out_dir=data_dir,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +213,6 @@ def train_continual(model: WhisperCommandClassifier, train_loader: DataLoader, v
 
 def main() -> None:
     data_dir = Path("data")
-    config_path = Path("config/commands.yaml")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info("Device: %s", device)
@@ -245,7 +226,7 @@ def main() -> None:
     logger.info("Existing classes (%d): %s", n_old, list(label_to_idx.keys()))
 
     # 2. Prompt for new command details + training config
-    new_label, entry = prompt_new_command()
+    new_label = prompt_new_command()
     if new_label in label_to_idx:
         logger.error("Label '%s' already exists in this checkpoint. Aborting.", new_label)
         sys.exit(1)
@@ -253,12 +234,12 @@ def main() -> None:
     model_name, epochs, grad_update_prob = prompt_training_config()
     checkpoint_out = f"models/{date.today()}_{model_name}.pth"
 
-    # 3. Update commands.yaml and generate data unless the label directory already exists
+    # 3. Generate data unless the label directory already exists
     label_dir = data_dir / new_label
     if label_dir.exists():
         logger.info("Data directory '%s' already exists, skipping generation.", label_dir)
     else:
-        run_data_generation(new_label, data_dir, config_path)
+        run_data_generation(new_label, data_dir)
 
     # 4. Expand label maps (new label appended at index N, old indices unchanged)
     new_idx = n_old

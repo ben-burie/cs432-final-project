@@ -33,7 +33,12 @@ def main():
     print("5. Evaluate A Model")
     print("6. Exit")
 
-    selection = int(input("\nSelection: "))
+    while True:
+        try:
+            selection = int(input("\nSelection: "))
+            break
+        except ValueError:
+            print("Please enter a number.")
     call_selection(selection)
 
 if __name__ == "__main__":

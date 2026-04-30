@@ -44,7 +44,6 @@ def select_commands(all_commands: list[str]) -> list[str]:
 
     return selected
 
-
 def main():
     all_data = load_data_from_dir(DATA_DIR)
     if not all_data:
@@ -54,7 +53,12 @@ def main():
     chosen = select_commands(sorted(all_data.keys()))
     data_dict = {k: all_data[k] for k in chosen}
 
-    epoch_input = int(input("\nNumber of epochs: ").strip())
+    while True:
+        try:
+            epoch_input = int(input("\nNumber of epochs: ").strip())
+            break
+        except ValueError:
+            print("Please enter a valid number.")
 
     unique_labels = sorted(data_dict.keys())
     label_to_idx = {label: i for i, label in enumerate(unique_labels)}
