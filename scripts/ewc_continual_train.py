@@ -82,8 +82,8 @@ def accumulate_and_resave(checkpoint_path: str, train_loader, device: torch.devi
     new_fisher, new_theta_star = compute_fisher_diagonal(model, train_loader, device)
 
     accumulated = {
-        "weight": old_fisher["weight"] + new_fisher["weight"].cpu(),
-        "bias":   old_fisher["bias"]   + new_fisher["bias"].cpu(),
+        "weight": old_fisher["weight"].cpu() + new_fisher["weight"].cpu(),
+        "bias":   old_fisher["bias"].cpu()   + new_fisher["bias"].cpu(),
     }
     final_theta_star = {k: v.cpu() for k, v in new_theta_star.items()}
 

@@ -43,6 +43,11 @@ def compute_fisher_diagonal(model, train_loader, device) -> tuple[dict, dict]:
 
         n_batches += 1
 
+    if n_batches == 0:
+        logger.warning("compute_fisher_diagonal: train_loader was empty, returning zero Fisher.")
+        return fisher, {"weight": model.classifier.weight.detach().clone(),
+                        "bias":   model.classifier.bias.detach().clone()}
+
     fisher["weight"] /= n_batches
     fisher["bias"]   /= n_batches
 

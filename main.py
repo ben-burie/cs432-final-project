@@ -29,7 +29,7 @@ def main():
     print("1. Generate Training Data")
     print("2. Train From Scratch")
     print("3. Add New Command - Continual Train (NO EWC)")
-    print("4. Add New Command - Continual Train Using EWC Stratgey")
+    print("4. Add New Command - Continual Train Using EWC Strategy")
     print("5. Evaluate A Model")
     print("6. Exit")
 
@@ -39,7 +39,10 @@ def main():
             break
         except ValueError:
             print("Please enter a number.")
-    call_selection(selection)
+    try:
+        call_selection(selection)
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main()

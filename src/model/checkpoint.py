@@ -33,7 +33,7 @@ def save_checkpoint(path: str, model: WhisperCommandClassifier, label_to_idx: di
 
 
 def load_checkpoint(checkpoint_path: str, device: str = "cpu"):
-    ckpt = torch.load(checkpoint_path, map_location=device)
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     label_to_idx = ckpt["label_to_idx"]
     idx_to_label = ckpt["idx_to_label"]
     whisper_model_name = ckpt["whisper_model_name"]

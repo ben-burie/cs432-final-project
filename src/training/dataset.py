@@ -30,6 +30,9 @@ class CommandDataset(Dataset):
 
 def load_data_from_dir(data_dir: str) -> dict[str, list[str]]:
     """Scan data_dir for subdirectories; each subdirectory is a command class with .wav files."""
+    if not Path(data_dir).exists():
+        logger.error(f"Data directory '{data_dir}' does not exist. Run 'Generate Training Data' first.")
+        return {}
     data = {}
     for cmd_dir in sorted(Path(data_dir).iterdir()):
         if cmd_dir.is_dir():

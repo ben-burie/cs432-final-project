@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 DATA_DIR = "data"
 CHECKPOINT = "models/BASE.pth"
 WHISPER_MODEL = "turbo"
-EPOCHS = 15
 BATCH_SIZE = 8
 LR = 1e-4
 
